@@ -70,6 +70,17 @@ def _get_user_statistics(user: CurrentUser, mode: GameMode) -> UserStatisticsRes
     )
 
 
+def _all_statistics(user: CurrentUser) -> dict:
+    """Build the per-ruleset statistics dict the client panel reads."""
+    modes = {
+        "osu": GameMode.OSU,
+        "taiko": GameMode.TAIKO,
+        "fruits": GameMode.CATCH,
+        "mania": GameMode.MANIA,
+    }
+    return {name: _get_user_statistics(user, m) for name, m in modes.items()}
+
+
 @router.get("/me", response_model=UserResponse)
 @router.get("/me/", response_model=UserResponse, include_in_schema=False)
 async def get_current_user(user: CurrentUser) -> UserResponse:
@@ -93,6 +104,7 @@ async def get_current_user(user: CurrentUser) -> UserResponse:
         join_date=user.created_at,
         last_visit=user.last_visit,
         statistics=stats,
+        statistics_rulesets=_all_statistics(user),
     )
 
 
@@ -124,4 +136,5 @@ async def get_current_user_mode(user: CurrentUser, mode: str) -> UserResponse:
         join_date=user.created_at,
         last_visit=user.last_visit,
         statistics=stats,
+        statistics_rulesets=_all_statistics(user),
     )
