@@ -52,6 +52,71 @@ def _status_to_string(status: BeatmapStatus) -> str:
     }.get(status, "pending")
 
 
+def _beatmapset_to_api_dict(bs: BeatmapSet) -> dict:
+    """Faithful osu! API v2 beatmapset object."""
+    return {
+        "id": bs.id,
+        "user_id": bs.user_id or 0,
+        "artist": bs.artist,
+        "artist_unicode": bs.artist_unicode or bs.artist,
+        "title": bs.title,
+        "title_unicode": bs.title_unicode or bs.title,
+        "creator": bs.creator,
+        "source": bs.source or "",
+        "tags": bs.tags or "",
+        "status": _status_to_string(bs.status),
+        "ranked": int(bs.status),
+        "play_count": bs.play_count,
+        "favourite_count": bs.favourite_count,
+        "bpm": bs.bpm,
+        "preview_url": bs.preview_url or "",
+        "video": bs.has_video,
+        "storyboard": bs.has_storyboard,
+        "nsfw": bs.nsfw,
+        "ranked_date": bs.ranked_date.isoformat() if bs.ranked_date else None,
+        "submitted_date": bs.submitted_date.isoformat() if bs.submitted_date else None,
+        "last_updated": bs.last_updated.isoformat() if bs.last_updated else None,
+        "covers": {},
+    }
+
+
+def _beatmap_to_api_dict(beatmap: Beatmap) -> dict:
+    """Faithful osu! API v2 beatmap object (the shape osu!lazer expects)."""
+    bs = beatmap.beatmapset
+    data = {
+        "id": beatmap.id,
+        "beatmapset_id": beatmap.beatmapset_id,
+        "difficulty_rating": beatmap.difficulty_rating,
+        "mode": _mode_to_string(beatmap.mode),
+        "mode_int": int(beatmap.mode),
+        "status": _status_to_string(beatmap.status),
+        "ranked": int(beatmap.status),
+        "total_length": beatmap.total_length,
+        "hit_length": beatmap.hit_length,
+        "user_id": (bs.user_id if bs and bs.user_id else 0),
+        "version": beatmap.version,
+        "accuracy": beatmap.od,
+        "ar": beatmap.ar,
+        "cs": beatmap.cs,
+        "drain": beatmap.hp,
+        "bpm": beatmap.bpm,
+        "convert": False,
+        "count_circles": beatmap.count_circles,
+        "count_sliders": beatmap.count_sliders,
+        "count_spinners": beatmap.count_spinners,
+        "last_updated": beatmap.last_updated.isoformat() if beatmap.last_updated else None,
+        "passcount": beatmap.pass_count,
+        "playcount": beatmap.play_count,
+        "checksum": beatmap.checksum,
+        "max_combo": beatmap.max_combo,
+        "is_scoreable": True,
+        "url": f"https://osu.ppy.sh/beatmaps/{beatmap.id}",
+    }
+    if bs:
+        data["beatmapset"] = _beatmapset_to_api_dict(bs)
+    return data
+
+
 def _beatmap_to_compact(beatmap: Beatmap) -> BeatmapCompact:
     """Convert Beatmap model to BeatmapCompact."""
     return BeatmapCompact(
@@ -88,13 +153,13 @@ def _beatmapset_to_compact(beatmapset: BeatmapSet) -> BeatmapsetCompact:
     )
 
 
-@router.get("/beatmaps/lookup", response_model=BeatmapResponse)
+@router.get("/beatmaps/lookup")
 async def lookup_beatmap(
     db: DbSession,
     checksum: str | None = Query(None),
     filename: str | None = Query(None),
     id: int | None = Query(None),
-) -> BeatmapResponse:
+) -> dict:
     """Lookup a beatmap by checksum, filename, or ID.
 
     Checks local database first, then fetches from external source if not found.
@@ -123,21 +188,13 @@ async def lookup_beatmap(
                 detail="Beatmap not found",
             )
 
-        compact = _beatmap_to_compact(beatmap)
-        beatmapset = (
-            _beatmapset_to_compact(beatmap.beatmapset) if beatmap.beatmapset else None
-        )
-
-        return BeatmapResponse(
-            **compact.model_dump(),
-            beatmapset=beatmapset,
-        )
+        return _beatmap_to_api_dict(beatmap)
     finally:
         await service.close()
 
 
-@router.get("/beatmaps/{beatmap_id}", response_model=BeatmapResponse)
-async def get_beatmap(db: DbSession, beatmap_id: int) -> BeatmapResponse:
+@router.get("/beatmaps/{beatmap_id}")
+async def get_beatmap(db: DbSession, beatmap_id: int) -> dict:
     """Get a beatmap by ID.
 
     Checks local database first, then fetches from mirror if not found.
@@ -153,15 +210,7 @@ async def get_beatmap(db: DbSession, beatmap_id: int) -> BeatmapResponse:
                 detail="Beatmap not found",
             )
 
-        compact = _beatmap_to_compact(beatmap)
-        beatmapset = (
-            _beatmapset_to_compact(beatmap.beatmapset) if beatmap.beatmapset else None
-        )
-
-        return BeatmapResponse(
-            **compact.model_dump(),
-            beatmapset=beatmapset,
-        )
+        return _beatmap_to_api_dict(beatmap)
     finally:
         await service.close()
 

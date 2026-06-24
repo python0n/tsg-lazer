@@ -24,6 +24,7 @@ OSU_TOKEN_URL = "https://osu.ppy.sh/oauth/token"
 
 # Public beatmap CDN (no auth required)
 CATBOY_CDN_URL = "https://catboy.best"
+OSU_DIRECT_URL = "https://osu.direct"
 
 
 @dataclass
@@ -171,7 +172,7 @@ class BeatmapService:
         Uses catboy.best CDN by default (publicly available, no auth required).
         """
         # Always use catboy.best CDN for downloads - it's public and reliable
-        async for chunk in self._download_from_catboy(beatmapset_id, no_video):
+        async for chunk in self._download_from_osudirect(beatmapset_id, no_video):
             yield chunk
 
     async def _download_from_catboy(
@@ -183,6 +184,34 @@ class BeatmapService:
             path += "n"  # 'n' suffix for no-video version
 
         async with self._get_catboy_client() as client:
+            async with client.stream("GET", path) as response:
+                if response.status_code != 200:
+                    raise Exception(
+                        f"Failed to download beatmapset {beatmapset_id}: {response.status_code}",
+                    )
+                async for chunk in response.aiter_bytes(chunk_size=8192):
+                    yield chunk
+
+    async def _download_from_osudirect(
+        self, beatmapset_id: int, no_video: bool = False,
+    ) -> AsyncIterator[bytes]:
+        """Download beatmapset from the osu.direct mirror."""
+        path = f"/api/d/{beatmapset_id}"
+        if no_video:
+            path += "?noVideo=true"
+
+        async with httpx.AsyncClient(
+            base_url=OSU_DIRECT_URL,
+            timeout=120.0,
+            follow_redirects=True,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Safari/537.36"
+                ),
+            },
+        ) as client:
             async with client.stream("GET", path) as response:
                 if response.status_code != 200:
                     raise Exception(
@@ -811,7 +840,7 @@ class BeatmapService:
 
         beatmapset = BeatmapSet(
             id=data["id"],
-            user_id=data.get("user_id"),
+            user_id=None,  # mapper z osu! nie jest userem tsg; nazwa zostaje w creator
             artist=data.get("artist", ""),
             artist_unicode=data.get("artist_unicode"),
             title=data.get("title", ""),
