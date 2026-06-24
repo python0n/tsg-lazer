@@ -18,9 +18,11 @@ router = APIRouter()
 @router.get("/notifications")
 async def get_notifications(user: CurrentUser, request: Request) -> dict:
     """Get user notifications."""
-    # Build WebSocket URL for notifications
-    # Use ws:// for http:// and wss:// for https://
-    scheme = "ws" if request.url.scheme == "http" else "wss"
+    # Build WebSocket URL for notifications.
+    # Behind nginx the internal scheme is http, so trust X-Forwarded-Proto and
+    # default to wss (the public deployment is HTTPS-only).
+    forwarded_proto = request.headers.get("x-forwarded-proto", "").lower()
+    scheme = "ws" if forwarded_proto == "http" else "wss"
     host = request.headers.get("host", "localhost:8000")
     notification_endpoint = f"{scheme}://{host}/api/v2/notifications/websocket"
 
@@ -53,6 +55,9 @@ async def notifications_websocket(websocket: WebSocket) -> None:
             try:
                 # Wait for messages with timeout, send keepalive if needed
                 message = await asyncio.wait_for(websocket.receive(), timeout=30.0)
+
+                if message.get("type") == "websocket.disconnect":
+                    break
 
                 if "text" in message:
                     try:

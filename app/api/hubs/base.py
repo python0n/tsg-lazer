@@ -184,6 +184,10 @@ async def run_message_loop(
         try:
             message = await asyncio.wait_for(websocket.receive(), timeout=timeout)
 
+            # Clean exit on disconnect (avoids calling receive() again -> 1012)
+            if message.get("type") == "websocket.disconnect":
+                break
+
             # Extract data based on protocol
             if use_messagepack:
                 if "bytes" not in message:

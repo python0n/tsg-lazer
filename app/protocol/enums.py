@@ -1,6 +1,6 @@
 """Enums matching official osu! client definitions."""
 
-from enum import IntEnum
+from enum import IntEnum, IntFlag
 
 
 class SpectatedUserState(IntEnum):
@@ -120,7 +120,7 @@ HIT_RESULT_NAMES = {
 HIT_RESULT_FROM_NAME = {v: k for k, v in HIT_RESULT_NAMES.items()}
 
 
-class ReplayButtonState(IntEnum):
+class ReplayButtonState(IntFlag):
     """Replay button state flags."""
 
     NONE = 0
