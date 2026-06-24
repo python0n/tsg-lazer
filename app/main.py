@@ -15,6 +15,7 @@ from app.api.hubs.multiplayer import router as multiplayer_router
 from app.api.hubs.spectator import router as spectator_router
 from app.api.v2 import router as api_v2_router
 from app.api.v2.oauth import router as oauth_router
+from app.api.v2.notifications import notifications_websocket
 from app.core.config import get_settings
 from app.core.database import close_db
 from app.core.database import init_db
@@ -84,6 +85,11 @@ app.include_router(oauth_router, tags=["OAuth"])
 app.include_router(spectator_router, tags=["SignalR"])
 app.include_router(metadata_router, tags=["SignalR"])
 app.include_router(multiplayer_router, tags=["SignalR"])
+
+# Notifications WebSocket mounted directly (nested-router prefix bug -> 404)
+app.add_api_websocket_route(
+    "/api/v2/notifications/websocket", notifications_websocket,
+)
 
 
 @app.get("/")

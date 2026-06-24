@@ -145,7 +145,7 @@ async def spectator_websocket(websocket: WebSocket) -> None:
 
             target = parsed.get("target", "")
             args = parsed.get("arguments", [])
-            logger.info(f"Spectator hub: {target}({len(args)} args)")
+            logger.debug(f"Spectator hub: {target}({len(args)} args)")
 
             if target == "BeginPlaySession":
                 score_token = args[0] if args else None
