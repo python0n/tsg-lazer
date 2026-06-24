@@ -5,6 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel
 from pydantic import ConfigDict
+from pydantic import computed_field
 from pydantic import Field
 
 
@@ -21,6 +22,11 @@ class UserCompact(BaseModel):
     is_active: bool = True
     is_bot: bool = False
     is_supporter: bool = False
+
+    @computed_field
+    @property
+    def country(self) -> dict:
+        return {"code": self.country_code, "name": self.country_code}
 
 
 class RankHistoryResponse(BaseModel):
@@ -42,6 +48,11 @@ class UserStatisticsResponse(BaseModel):
     global_rank_percent: float | None = None  # Percentile ranking
     country_rank: int | None = None
     is_ranked: bool = False  # Whether user has any ranked plays
+
+    @computed_field
+    @property
+    def rank(self) -> dict:
+        return {"global": self.global_rank, "country": self.country_rank}
     rank_history: RankHistoryResponse | None = None  # For the rank graph
     accuracy: float = Field(alias="hit_accuracy", default=100.0)
     play_count: int = 0
@@ -64,6 +75,12 @@ class UserResponse(UserCompact):
     created_at: datetime | None = Field(alias="join_date", default=None)
     last_visit: datetime | None = None
     statistics: UserStatisticsResponse | None = None
+    statistics_rulesets: dict[str, UserStatisticsResponse] | None = None
+
+    @computed_field
+    @property
+    def cover(self) -> dict:
+        return {"url": self.cover_url or "", "custom_url": self.cover_url, "id": None}
 
 
 class UserRelationResponse(BaseModel):

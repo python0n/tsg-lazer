@@ -1,6 +1,8 @@
 """Score endpoints."""
 
+import asyncio
 import json
+import logging
 from datetime import UTC
 from datetime import datetime
 
@@ -27,8 +29,13 @@ from app.models.score import ScoreToken
 from app.models.user import GameMode
 from app.models.user import User
 from app.services.beatmaps import BeatmapService
+from app.usecases.osu_files import ensure_osu_file
+from app.usecases.performance import calculate_pp
+from app.usecases.stats import update_user_statistics
 
 router = APIRouter()
+
+logger = logging.getLogger(__name__)
 
 
 def _mode_to_string(mode: GameMode) -> str:
@@ -165,10 +172,17 @@ async def get_beatmap_scores(
             detail="Beatmap not found",
         )
 
-    # Build query
-    query = (
-        select(Score)
-        .options(selectinload(Score.user))
+    # One best score per user (highest total_score) — a real leaderboard
+    ranked_subq = (
+        select(
+            Score.id.label("id"),
+            func.row_number()
+            .over(
+                partition_by=Score.user_id,
+                order_by=(Score.total_score.desc(), Score.id.asc()),
+            )
+            .label("rn"),
+        )
         .where(
             and_(
                 Score.beatmap_id == beatmap_id,
@@ -176,6 +190,14 @@ async def get_beatmap_scores(
                 Score.ranked.is_(True),
             ),
         )
+        .subquery()
+    )
+
+    query = (
+        select(Score)
+        .options(selectinload(Score.user))
+        .join(ranked_subq, ranked_subq.c.id == Score.id)
+        .where(ranked_subq.c.rn == 1)
         .order_by(Score.total_score.desc())
         .limit(limit)
     )
@@ -261,6 +283,20 @@ async def submit_score(
     if score_data.total_score_without_mods:
         data["total_score_without_mods"] = score_data.total_score_without_mods
 
+    # Server-side PP - never trust client-submitted pp
+    computed_pp = 0.0
+    if score_data.passed:
+        osu_path = await ensure_osu_file(beatmap_id)
+        if osu_path:
+            computed_pp, _stars = await asyncio.to_thread(
+                calculate_pp,
+                osu_path,
+                token.ruleset_id,
+                [m.model_dump() for m in score_data.mods],
+                score_data.statistics,
+                score_data.max_combo,
+            )
+
     # Create score
     ended_at = score_data.ended_at if score_data.ended_at else datetime.now(UTC)
     score = Score(
@@ -270,7 +306,7 @@ async def submit_score(
         data=json.dumps(data),
         total_score=score_data.total_score,
         accuracy=score_data.accuracy,
-        pp=score_data.pp,
+        pp=computed_pp,
         max_combo=score_data.max_combo,
         rank=score_data.rank,
         passed=score_data.passed,
@@ -293,9 +329,11 @@ async def submit_score(
 
     await db.flush()
 
-    # TODO: Calculate PP
-    # TODO: Update user statistics
-    # TODO: Check for new personal best
+    # Recompute the user's profile statistics (pp, accuracy, ranks, playcount)
+    try:
+        await update_user_statistics(db, user, GameMode(token.ruleset_id))
+    except Exception:
+        logger.exception("Failed to update user statistics for user %s", user.id)
 
     # Calculate rank on leaderboard (count scores with higher total_score)
     rank_global = None
