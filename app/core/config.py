@@ -17,17 +17,18 @@ class Settings(BaseSettings):
     )
 
     # Server
-    app_name: str = "py-lazer-server"
+    app_name: str = "tsg-lazer"
     debug: bool = False
     log_level: str = "INFO"
     host: str = "0.0.0.0"
-    port: int = 8000
+    port: int = 8001  # 8000 is bancho-py-ex
 
-    # Database
-    database_url: str = "sqlite+aiosqlite:///./osu.db"
+    # Database — MySQL (asyncmy driver)
+    # Format: mysql+asyncmy://user:pass@host:port/dbname
+    database_url: str = "mysql+asyncmy://tsg:changeme@localhost:3306/tsg_lazer"
 
-    # Redis (for caching and pub/sub)
-    redis_url: str = "redis://localhost:6379/0"
+    # Redis (shared with bancho-py-ex)
+    redis_url: str = "redis://localhost:6379/1"  # DB 1, bancho uses 0
 
     # OAuth2 / JWT
     secret_key: str = "change-me-in-production-use-openssl-rand-hex-32"
@@ -35,13 +36,13 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60 * 24 * 7  # 7 days
     refresh_token_expire_days: int = 30
 
-    # OAuth2 Client (for lazer client)
+    # OAuth2 Client (musi być zgodny z patche w kliencie lazer)
     oauth_client_id: str = "5"
     oauth_client_secret: str = "change-me"
 
     # External URLs
-    api_base_url: str = "http://localhost:8000"
-    website_url: str = "http://localhost:8000"
+    api_base_url: str = "https://taksiegra.ovh"
+    website_url: str = "https://taksiegra.ovh"
 
     # File storage
     beatmaps_path: str = "./data/beatmaps"
@@ -55,13 +56,13 @@ class Settings(BaseSettings):
     # Server mode
     server_mode: Literal["development", "production"] = "development"
 
-    # Beatmap mirror settings
-    # When True, uses internal mirror (beatmaps.akatsuki.gg) - requires IP whitelist
-    # When False, uses official osu! API directly (requires osu_api credentials)
-    use_beatmap_mirror: bool = True
-    beatmap_mirror_url: str = "https://beatmaps.akatsuki.gg"
+    # Beatmap mirror — nerinyan (ten sam co bancho-py-ex)
+    beatmap_mirror_url: str = "https://api.nerinyan.moe"
 
-    # Official osu! API v2 credentials (for direct API access when not using mirror)
+    # True = mirror (nerinyan). False = oficjalne osu! API (wymagane do lookupu po checksum).
+    use_beatmap_mirror: bool = True
+
+    # Official osu! API v2 credentials (dla wyszukiwania beatmap)
     osu_api_client_id: str = ""
     osu_api_client_secret: str = ""
 

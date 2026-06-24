@@ -15,6 +15,8 @@ engine = create_async_engine(
     settings.database_url,
     echo=settings.log_level == "DEBUG",
     future=True,
+    pool_pre_ping=True,   # MySQL: sprawdza czy połączenie żyje przed użyciem
+    pool_recycle=3600,    # MySQL: recykling połączeń co godzinę (unikamy "gone away")
 )
 
 async_session_maker = async_sessionmaker(

@@ -1,0 +1,37 @@
+services:
+  tsg-lazer-mysql:
+    image: mysql:8.0
+    container_name: tsg-lazer-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass123
+      MYSQL_DATABASE: tsg_lazer
+      MYSQL_USER: tsg_lazer
+      MYSQL_PASSWORD: tsg_lazer_pass
+    volumes:
+      - tsg-lazer-mysql-data:/var/lib/mysql
+    ports:
+      - "127.0.0.1:3309:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-ptsg_lazer_pass"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  tsg-lazer:
+    build: .
+    container_name: tsg-lazer
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8001:8001"
+    env_file: .env
+    depends_on:
+      tsg-lazer-mysql:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  tsg-lazer-mysql-data:
