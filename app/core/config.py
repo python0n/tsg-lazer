@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     beatmaps_path: str = "./data/beatmaps"
     replays_path: str = "./data/replays"
     avatars_path: str = "./data/avatars"
+    covers_path: str = "./data/covers"
+    avatar_max_mb: int = 5
+    cover_max_mb: int = 10
+    assets_base_url: str = "https://taksiegra.ovh"
 
     # Rate limiting
     rate_limit_requests: int = 1200
@@ -71,3 +75,6 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Get cached settings instance."""
     return Settings()
+
+# singleton alias
+settings = get_settings()

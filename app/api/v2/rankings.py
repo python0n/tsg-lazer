@@ -21,7 +21,12 @@ PAGE_SIZE = 50
 
 async def _country_rankings(db: DbSession, game_mode, page: int) -> dict:
     """Per-country aggregated rankings (osu! CountryStatistics shape)."""
-    conditions = [UserStatistics.mode == game_mode, UserStatistics.pp > 0]
+    conditions = [
+        UserStatistics.mode == game_mode,
+        UserStatistics.pp > 0,
+        User.is_bot.is_(False),
+        User.is_restricted.is_(False),
+    ]
 
     count_stmt = (
         select(func.count(func.distinct(User.country_acronym)))
@@ -97,7 +102,12 @@ async def get_rankings(
         order_col = UserStatistics.pp
         ranked_filter = UserStatistics.pp > 0
 
-    conditions = [UserStatistics.mode == game_mode, ranked_filter]
+    conditions = [
+        UserStatistics.mode == game_mode,
+        ranked_filter,
+        User.is_bot.is_(False),
+        User.is_restricted.is_(False),
+    ]
     if country:
         conditions.append(User.country_acronym == country.upper())
 

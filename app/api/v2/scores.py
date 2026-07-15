@@ -380,22 +380,71 @@ async def get_user_scores(
             detail="User not found",
         )
 
-    # Build query based on type
-    query = (
-        select(Score)
-        .options(selectinload(Score.beatmap))
-        .where(Score.user_id == user_id)
-    )
+    # Optional game-mode filter (string -> ruleset id)
+    mode_map = {"osu": 0, "taiko": 1, "fruits": 2, "mania": 3}
+    ruleset_id = mode_map.get(mode) if mode else None
 
     if type == "best":
-        query = query.where(
-            and_(Score.passed.is_(True), Score.ranked.is_(True)),
-        ).order_by(Score.pp.desc().nullslast())
+        # One best score per beatmap (highest pp), then ordered by pp desc.
+        conds = [
+            Score.user_id == user_id,
+            Score.passed.is_(True),
+            Score.ranked.is_(True),
+        ]
+        if ruleset_id is not None:
+            conds.append(Score.ruleset_id == ruleset_id)
+        rn = (
+            func.row_number()
+            .over(
+                partition_by=Score.beatmap_id,
+                order_by=(Score.pp.desc(), Score.id.asc()),
+            )
+            .label("rn")
+        )
+        best_subq = select(Score.id.label("id"), rn).where(and_(*conds)).subquery()
+        query = (
+            select(Score)
+            .options(selectinload(Score.beatmap))
+            .join(best_subq, and_(best_subq.c.id == Score.id, best_subq.c.rn == 1))
+            .order_by(Score.pp.is_(None), Score.pp.desc())
+        )
     elif type == "recent":
-        query = query.order_by(Score.ended_at.desc())
+        query = (
+            select(Score)
+            .options(selectinload(Score.beatmap))
+            .where(Score.user_id == user_id)
+            .order_by(Score.ended_at.desc())
+        )
+        if ruleset_id is not None:
+            query = query.where(Score.ruleset_id == ruleset_id)
     elif type == "firsts":
-        # TODO: Implement first place scores
-        query = query.where(Score.passed.is_(True)).order_by(Score.ended_at.desc())
+        # Beatmaps where THIS user holds the #1 score (highest total_score across
+        # all users). Per beatmap, rank every passed+ranked score by total_score;
+        # the rn==1 row is the map's #1 — keep those owned by this user.
+        first_conds = [Score.passed.is_(True), Score.ranked.is_(True)]
+        if ruleset_id is not None:
+            first_conds.append(Score.ruleset_id == ruleset_id)
+        top_subq = (
+            select(
+                Score.id.label("id"),
+                Score.user_id.label("user_id"),
+                func.row_number()
+                .over(
+                    partition_by=Score.beatmap_id,
+                    order_by=(Score.total_score.desc(), Score.id.asc()),
+                )
+                .label("rn"),
+            )
+            .where(and_(*first_conds))
+            .subquery()
+        )
+        query = (
+            select(Score)
+            .options(selectinload(Score.beatmap))
+            .join(top_subq, top_subq.c.id == Score.id)
+            .where(and_(top_subq.c.rn == 1, top_subq.c.user_id == user_id))
+            .order_by(Score.pp.is_(None), Score.pp.desc())
+        )
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

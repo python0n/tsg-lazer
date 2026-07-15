@@ -8,6 +8,9 @@ from pydantic import ConfigDict
 from pydantic import computed_field
 from pydantic import Field
 
+# All profile sections in their default order (osu-web SECTIONS style).
+PROFILE_SECTIONS = ["me", "top_ranks", "historical"]
+
 
 # User schemas
 class UserCompact(BaseModel):
@@ -76,6 +79,13 @@ class UserResponse(UserCompact):
     last_visit: datetime | None = None
     statistics: UserStatisticsResponse | None = None
     statistics_rulesets: dict[str, UserStatisticsResponse] | None = None
+    follower_count: int = 0
+    # osu-web style user page: {"raw": bbcode, "html": rendered}
+    page: dict | None = None
+    # Profile section order (osu-web extras_order style).
+    profile_order: list[str] = Field(default_factory=lambda: ["me", "top_ranks", "historical"])
+    is_admin: bool = False
+    is_staff: bool = False
 
     @computed_field
     @property
