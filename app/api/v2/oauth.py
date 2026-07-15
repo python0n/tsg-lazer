@@ -63,6 +63,13 @@ async def get_token(
         )
         user = result.scalar_one_or_none()
 
+        if user is not None and user.is_bot:
+            # Bot accounts (like bancho.py's BanchoBot) can never log in.
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Bot accounts cannot log in",
+            )
+
         if not user or not verify_password(password, user.password_hash):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -109,7 +116,7 @@ async def get_token(
         result = await db.execute(select(User).where(User.id == token_data.user_id))
         user = result.scalar_one_or_none()
 
-        if not user or user.is_restricted:
+        if not user or user.is_restricted or user.is_bot:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User not found or restricted",

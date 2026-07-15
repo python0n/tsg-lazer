@@ -72,9 +72,24 @@ def get_spectator_hub(request: Request) -> "SpectatorHub":
     return request.app.state.spectator_hub
 
 
+async def get_current_admin(
+    user: Annotated[User, Depends(get_current_user_required)],
+) -> User:
+    """Require the current user to hold the ADMINISTRATOR privilege."""
+    from app.core.privileges import is_admin
+
+    if not is_admin(user.privileges):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrator privileges required",
+        )
+    return user
+
+
 # Type aliases for cleaner dependency injection
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 OptionalUser = Annotated[User | None, Depends(get_current_user)]
 CurrentUser = Annotated[User, Depends(get_current_user_required)]
 ActiveUser = Annotated[User, Depends(get_current_active_user)]
+AdminUser = Annotated[User, Depends(get_current_admin)]
 SpectatorHubDep = Annotated["SpectatorHub", Depends(get_spectator_hub)]

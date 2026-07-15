@@ -1,18 +1,22 @@
 """User and authentication models."""
 
 from datetime import UTC
+from datetime import date
 from datetime import datetime
 from enum import IntEnum
 from typing import TYPE_CHECKING
 
 from sqlalchemy import BigInteger
 from sqlalchemy import Boolean
+from sqlalchemy import Date
 from sqlalchemy import DateTime
 from sqlalchemy import Enum
+from sqlalchemy import Float
 from sqlalchemy import ForeignKey
 from sqlalchemy import Integer
 from sqlalchemy import String
 from sqlalchemy import Text
+from sqlalchemy import UniqueConstraint
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
 from sqlalchemy.orm import relationship
@@ -55,6 +59,13 @@ class User(Base):
     avatar_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     cover_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     title: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # "me!" section content. Raw BBCode + server-rendered safe HTML
+    # (Shiina-Web pattern). New COLUMNs -> manual ALTER TABLE required.
+    user_page: Mapped[str | None] = mapped_column(Text, nullable=True)
+    user_page_html: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Comma-separated profile section order (osu-web extras_order style),
+    # e.g. "me,top_ranks,historical". NULL = default order.
+    profile_order: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     # Preferences
     playmode: Mapped[GameMode] = mapped_column(
@@ -67,6 +78,9 @@ class User(Base):
     is_supporter: Mapped[bool] = mapped_column(Boolean, default=False)
     is_restricted: Mapped[bool] = mapped_column(Boolean, default=False)
     is_bot: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # Privilege bitflags (roles). 3 = UNRESTRICTED | VERIFIED (normal user).
+    privileges: Mapped[int] = mapped_column(Integer, default=3, server_default="3")
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
@@ -238,3 +252,41 @@ class OAuthToken(Base):
     def scope_list(self) -> list[str]:
         """Get scopes as a list."""
         return self.scopes.split() if self.scopes else []
+
+
+class UserRankHistory(Base):
+    """Daily snapshot of a user's global rank, for the profile rank graph.
+
+    One row per (user, mode, day). Recorded when statistics are updated, so the
+    graph fills in over time (past ranks can't be reconstructed retroactively).
+    """
+
+    __tablename__ = "user_rank_history"
+    __table_args__ = (
+        UniqueConstraint("user_id", "mode", "date", name="uq_rank_history_day"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True,
+    )
+    mode: Mapped[int] = mapped_column(Integer, index=True)  # ruleset id
+    date: Mapped[date] = mapped_column(Date, index=True)
+    rank: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    pp: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+
+class PasswordReset(Base):
+    """Admin-generated one-time password reset token."""
+
+    __tablename__ = "password_resets"
+
+    token: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True,
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    used: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(UTC),
+    )

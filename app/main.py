@@ -4,10 +4,13 @@ import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+from pathlib import Path as FsPath
+
 from fastapi import FastAPI
 from fastapi import Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api.hubs.metadata import get_online_count
 from app.api.hubs.metadata import router as metadata_router
@@ -77,6 +80,12 @@ app.add_middleware(
 
 # Include API routes
 app.include_router(api_v2_router)
+
+# Serve uploaded avatars/covers (operator may instead point an asset host /
+# reverse proxy at these folders and set ASSETS_BASE_URL accordingly).
+for _kind, _path in (("avatars", settings.avatars_path), ("covers", settings.covers_path)):
+    FsPath(_path).mkdir(parents=True, exist_ok=True)
+    app.mount(f"/{_kind}", StaticFiles(directory=_path), name=_kind)
 
 # Also include OAuth at root level (osu! client expects /oauth/token, not /api/v2/oauth/token)
 app.include_router(oauth_router, tags=["OAuth"])

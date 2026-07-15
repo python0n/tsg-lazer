@@ -21,6 +21,8 @@ dependencies = [
     "msgpack>=1.1.0",
     "redis>=5.2.0",
     "aiofiles>=24.1.0",
+    "Pillow>=10.0.0",
+    "bbcode>=1.1.0",
     "python-socketio>=5.11.0",
 ]
 
